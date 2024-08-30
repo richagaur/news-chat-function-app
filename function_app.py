@@ -34,17 +34,7 @@ def chat_query(req: func.HttpRequest) -> func.HttpResponse:
     
     
 def user(user_message, chat_history):
-        # Create a timer to measure the time it takes to complete the request
-        start_time = time.time()
         # Get LLM completion
         response_payload, cached = openai_client.chat_completion(cache_container, news_container, user_message)
-        # Stop the timer
-        end_time = time.time()
-        elapsed_time = round((end_time - start_time) * 1000, 2)
-        # Append user message and response to chat history
-        details = f"\n (Time: {elapsed_time}ms)"
-        if cached:
-            details += " (Cached)"
-        chat_history.append([user_message, response_payload + details])
-        
+        chat_history.append([user_message, response_payload])
         return response_payload, cached
