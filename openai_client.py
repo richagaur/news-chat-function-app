@@ -54,6 +54,7 @@ class OpenAIClient:
                 - Only reference news articles or events included in the JSON data.
                 - If a particular category of news is asked, provide the latest news in that category only.
                 - If the data related to user query is not available, politely inform the user that you cannot answer queries about it.
+                - If you are unsure of an answer, respond with "I don't know" or "I'm not sure," and suggest the user perform a search on their own.
                 Formatting Instructions:
                 - Use <h3> for each news headline.
                 - Provide concise summaries underneath each headline in <p> tags.
@@ -87,7 +88,6 @@ class OpenAIClient:
             if result['document']:
                 messages.append({'role': 'system', 'content': json.dumps(result['document'])})
 
-        logging.info("Messages going to openai", messages)
         # Create the completion
         response = self.openai_client.chat.completions.create(
             model = self.openai_completions_deployment,
@@ -115,8 +115,9 @@ class OpenAIClient:
         if completions_results['choices'][0]['message']['content']: 
             logging.info("Caching response \n")
             self.cache_response(cache_container, user_input, user_embeddings, completions_results)
-        # Return the generated LLM completion
-        return completions_results['choices'][0]['message']['content'], False
+            return completions_results['choices'][0]['message']['content'], False
+        # Return the default completion
+        return "I apologize for not answering this question. Please ask another question.", False
     
     def cache_response(self, container, user_prompt, prompt_vectors, response):
         # Create a dictionary representing the chat document
