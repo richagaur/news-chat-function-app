@@ -4,6 +4,7 @@ import yaml
 import os
 import uuid
 import json
+import logging
 
 
 class OpenAIClient:
@@ -48,15 +49,26 @@ class OpenAIClient:
 
     def generate_completion(self, user_prompt, vector_search_results, chat_history):
         
-        system_prompt = '''
-        You are an intelligent assistant for news aggregation. You are designed to provide concise, relevant, and factual summaries in response to user queries about news in your database.
-            - Summarize only the information directly related to the user’s query.
-            - Ignore any information that is not relevant to the user’s query or the provided articles.
-            - Do not include unrelated details or speculate beyond the provided information.
-            - Respond only to questions directly connected to the summarized content.
-            - Avoid providing answers or details on topics not covered in the provided information.
-        '''
+        system_prompt = """You are an intelligent assistant for the Cosmic News app, designed to provide accurate and helpful answers to user queries about the latest news and historical timelines of news events, using only the provided JSON data.
+                Instructions:
+                - Only reference news articles or events included in the JSON data.
+                - If a particular category of news is asked, provide the latest news in that category only.
+                - If the data related to user query is not available, politely inform the user that you cannot answer queries about it.
+                Formatting Instructions:
+                - Use <h3> for each news headline.
+                - Provide concise summaries underneath each headline in <p> tags.
+                - For historical news articles, use <h4> for the date in bold, followed by the event description in <p> tags.
+                - Assume the user has no prior knowledge of the topic in question.
+            """
+        #         Instructions:
 
+        #         - If a news event is not included in the provided context, politely inform the user that you cannot answer queries about it.
+        #         - Only reference news articles or events included in the JSON data.
+        #         - If you are unsure of an answer, respond with "I don't know" or "I'm not sure," and suggest the user perform a search on their own.
+        #         - Decline to answer any questions unrelated to news and politely remind the user that you are a news assistant.
+        #         - Ensure your response is clear, complete, and suitable for display on a web page.
+        #         
+        
         # Create a list of messages as a payload to send to the OpenAI Completions API
 
         # system prompt
@@ -64,16 +76,18 @@ class OpenAIClient:
 
         #chat history
         for chat in chat_history:
-            messages.append({'role': 'user', 'content': chat['prompt'] + " " + chat['completion']})
+            if chat['prompt'] and chat['completion']:
+                messages.append({'role': 'user', 'content': chat['prompt'] + " " + chat['completion']})
         
         #user prompt
         messages.append({'role': 'user', 'content': user_prompt})
 
         #vector search results
         for result in vector_search_results:
-            messages.append({'role': 'system', 'content': json.dumps(result['document'])})
+            if result['document']:
+                messages.append({'role': 'system', 'content': json.dumps(result['document'])})
 
-        print("Messages going to openai", messages)
+        logging.info("Messages going to openai", messages)
         # Create the completion
         response = self.openai_client.chat.completions.create(
             model = self.openai_completions_deployment,
@@ -87,20 +101,20 @@ class OpenAIClient:
         print("starting completion")
         # Generate embeddings from the user input
         user_embeddings = self.generate_embeddings(user_input)
-
         #perform vector search on the news container
-        print("New result\n")
+        logging.info("New result\n")
         search_results = self.cosmos_client.vector_search(container, user_embeddings)
-        print("Getting Chat History\n")
+        logging.info("Getting Chat History\n")
         #chat history
         chat_history = self.get_chat_history(cache_container, 3)
         #generate the completion
-        print("Generating completions \n")
+        logging.info("Generating completions \n")
         completions_results = self.generate_completion(user_input, search_results, chat_history)
-        print("Caching response \n")
+        
         #cache the response
-        self.cache_response(cache_container, user_input, user_embeddings, completions_results)
-        print("\n")
+        if completions_results['choices'][0]['message']['content']: 
+            logging.info("Caching response \n")
+            self.cache_response(cache_container, user_input, user_embeddings, completions_results)
         # Return the generated LLM completion
         return completions_results['choices'][0]['message']['content'], False
     
